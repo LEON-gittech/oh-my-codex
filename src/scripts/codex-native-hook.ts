@@ -542,6 +542,9 @@ function buildAdditionalContextMessage(prompt: string, skillState?: SkillActiveS
   const ralphPromptActivationNote = skillState?.initialized_mode === "ralph"
     ? "Prompt-side `$ralph` activation seeds Ralph workflow state only; it does not invoke `omx ralph`. Use `omx ralph --prd ...` only when you explicitly want the PRD-gated CLI startup path."
     : null;
+  const deepInterviewPromptActivationNote = skillState?.initialized_mode === "deep-interview"
+    ? "Deep-interview must ask each interview round via `omx question`; do not fall back to `request_user_input` or plain-text questioning. Stop remains blocked while a deep-interview question obligation is pending."
+    : null;
   const combinedTransitionMessage = (() => {
     if (!skillState?.transition_message) return null;
     if (matches.length <= 1 || activeSkills.length <= 1) return skillState.transition_message;
@@ -591,6 +594,7 @@ function buildAdditionalContextMessage(prompt: string, skillState?: SkillActiveS
         : null,
       promptPriorityMessage,
       initializedStateMessage,
+      deepInterviewPromptActivationNote,
       "Use the durable OMX team runtime via `omx team ...` for coordinated execution; do not replace it with in-process fanout.",
       "If you need runtime syntax, run `omx team --help` yourself.",
       "Follow AGENTS.md routing and preserve workflow transition and planning-safety rules.",
@@ -606,6 +610,7 @@ function buildAdditionalContextMessage(prompt: string, skillState?: SkillActiveS
         : null,
       promptPriorityMessage,
       `skill: ${skillState.initialized_mode} activated and initial state initialized at ${skillState.initialized_state_path}; write subsequent updates via omx_state MCP.`,
+      deepInterviewPromptActivationNote,
       ralphPromptActivationNote,
       "Follow AGENTS.md routing and preserve workflow transition and planning-safety rules.",
     ].join(" ");

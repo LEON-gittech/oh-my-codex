@@ -149,11 +149,27 @@ describe("deep-interview Ouroboros contract", () => {
 		assert.match(deepInterviewSkill, /Do NOT implement directly/i);
 	});
 
-	it("documents omx question as the preferred structured questioning path", () => {
+	it("documents omx question as the required structured questioning path with no fallback", () => {
 		assert.match(deepInterviewSkill, /omx question/i);
 		assert.match(
 			deepInterviewSkill,
-			/preferred `AskUserQuestion` equivalent/i,
+			/required `AskUserQuestion` equivalent/i,
+		);
+		assert.match(
+			deepInterviewSkill,
+			/requires the OMX question tool rather than falling back to another questioning path/i,
+		);
+		assert.doesNotMatch(
+			deepInterviewSkill,
+			/prefer `omx question` when available/i,
+		);
+		assert.doesNotMatch(
+			deepInterviewSkill,
+			/else, use `request_user_input` to present concise multiple-choice options/i,
+		);
+		assert.doesNotMatch(
+			deepInterviewSkill,
+			/fall back to concise plain-text one-question turns/i,
 		);
 	});
 
@@ -230,5 +246,10 @@ describe("cross-skill and AGENTS coherence for deep-interview", () => {
 		}
 		assert.match(templateAgents, /ouroboros/i);
 		assert.match(templateAgents, /Socratic deep interview/i);
+	});
+
+	it("makes template AGENTS explicit about omx question for deep-interview", () => {
+		assert.match(templateAgents, /deep-interview is active.*`omx question`/i);
+		assert.match(templateAgents, /do not substitute `request_user_input` or ad hoc plain-text questioning/i);
 	});
 });

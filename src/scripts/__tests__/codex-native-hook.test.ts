@@ -629,6 +629,37 @@ describe("codex native hook dispatch", () => {
     }
   });
 
+  it("clarifies that prompt-side deep-interview activation must use omx question", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-deep-interview-routing-"));
+    try {
+      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "UserPromptSubmit",
+          cwd,
+          session_id: "sess-deep-interview-msg",
+          thread_id: "thread-deep-interview-msg",
+          turn_id: "turn-deep-interview-msg",
+          prompt: "$deep-interview gather requirements",
+        },
+        { cwd },
+      );
+
+      assert.equal(result.omxEventName, "keyword-detector");
+      assert.equal(result.skillState?.skill, "deep-interview");
+      const message = String(
+        (result.outputJson as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext || "",
+      );
+      assert.match(message, /\$deep-interview" -> deep-interview/);
+      assert.match(message, /skill: deep-interview activated and initial state initialized at \.omx\/state\/sessions\/sess-deep-interview-msg\/deep-interview-state\.json; write subsequent updates via omx_state MCP\./);
+      assert.match(message, /Deep-interview must ask each interview round via `omx question`/);
+      assert.match(message, /do not fall back to `request_user_input` or plain-text questioning/i);
+      assert.match(message, /Stop remains blocked while a deep-interview question obligation is pending\./);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("ignores generic wrapper fields so metadata cannot trigger workflow routing or Stop blocking", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-wrapper-metadata-"));
     try {

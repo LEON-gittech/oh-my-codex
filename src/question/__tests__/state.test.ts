@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
@@ -64,5 +64,27 @@ describe('question state', () => {
     const finalRecord = await waiter;
     assert.equal(finalRecord.answer?.value, 'custom text');
     assert.equal(finalRecord.status, 'answered');
+  });
+
+  it('retries a transient truncated JSON read before returning the question record', async () => {
+    const cwd = await makeRepo();
+    const { recordPath, record } = await createQuestionRecord(cwd, {
+      question: 'Pick one',
+      options: [{ label: 'A', value: 'a' }],
+      allow_other: true,
+      other_label: 'Other',
+      multi_select: false,
+    }, 'sess-3');
+
+    const originalRaw = await readFile(recordPath, 'utf-8');
+    const truncatedRaw = originalRaw.slice(0, Math.max(1, originalRaw.length - 5));
+    await writeFile(recordPath, truncatedRaw);
+    setTimeout(() => {
+      void writeFile(recordPath, originalRaw);
+    }, 1);
+
+    const loaded = await readQuestionRecord(recordPath);
+    assert.equal(loaded?.question_id, record.question_id);
+    assert.equal(loaded?.question, 'Pick one');
   });
 });

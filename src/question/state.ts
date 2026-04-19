@@ -15,6 +15,8 @@ import type {
 
 const QUESTION_NAMESPACE = 'questions';
 const DEFAULT_POLL_INTERVAL_MS = 100;
+const DEFAULT_TRANSIENT_PARSE_RETRY_DELAY_MS = 10;
+const DEFAULT_TRANSIENT_PARSE_MAX_READ_ATTEMPTS = 2;
 
 function buildQuestionId(now = new Date()): string {
   return `question-${now.toISOString().replace(/[:.]/g, '-')}-$${Math.random().toString(16).slice(2, 10)}`.replace('$', '');
@@ -33,10 +35,42 @@ export async function writeQuestionRecord(recordPath: string, record: QuestionRe
   await writeAtomic(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 }
 
+function isLikelyTransientQuestionParseFailure(raw: string, err: unknown): boolean {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return true;
+  if (!(err instanceof SyntaxError)) return false;
+  if (!trimmed.startsWith('{') || trimmed.endsWith('}')) return false;
+  return (
+    /Unexpected end of JSON input/.test(err.message)
+    || /Unterminated string in JSON/.test(err.message)
+    || /Expected double-quoted property name in JSON/.test(err.message)
+    || /Expected property name or '}' in JSON/.test(err.message)
+    || /Expected ':' after property name in JSON/.test(err.message)
+    || /Expected ',' or '}' after property value in JSON/.test(err.message)
+  );
+}
+
 export async function readQuestionRecord(recordPath: string): Promise<QuestionRecord | null> {
   if (!existsSync(recordPath)) return null;
-  const parsed = JSON.parse(await readFile(recordPath, 'utf-8')) as QuestionRecord;
-  return parsed;
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= DEFAULT_TRANSIENT_PARSE_MAX_READ_ATTEMPTS; attempt += 1) {
+    const raw = await readFile(recordPath, 'utf-8');
+    try {
+      return JSON.parse(raw) as QuestionRecord;
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt >= DEFAULT_TRANSIENT_PARSE_MAX_READ_ATTEMPTS
+        || !isLikelyTransientQuestionParseFailure(raw, error)
+      ) {
+        throw error;
+      }
+      await sleep(DEFAULT_TRANSIENT_PARSE_RETRY_DELAY_MS);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 export async function createQuestionRecord(
